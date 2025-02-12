@@ -1,15 +1,27 @@
 import mongoose from "mongoose";
 
-const workoutSchema = new mongoose.Schema({
-  name: { type: String, required: true },
-  exercises: [
-    {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Exercise",
+const workoutSchema = new mongoose.Schema(
+  {
+    name: { type: String, required: true },
+    exercises: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Exercise",
+      },
+    ],
+    date: { type: Date, required: true },
+    duration: { type: Number, required: true },
+    userId: {
+      type: String,
+      required: true,
+      index: true,
     },
-  ],
-  date: { type: Date, required: true },
-  duration: { type: Number, required: true },
-});
+  },
+  {
+    timestamps: true,
+  }
+);
+
+workoutSchema.index({ userId: 1, date: -1 });
 
 export const Workout = mongoose.model("Workout", workoutSchema);

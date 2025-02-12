@@ -22,7 +22,7 @@ const initializeDatabase = async () => {
     console.log("Cleared existing data");
 
     // Sample Firebase user ID (replace with your test user's Firebase UID)
-    const sampleUserId = "firebase-test-user-id";
+    const sampleUserId = "E9vzvaSopzfV3DlXQWHdMKoW7PE2";
 
     // Create sample exercises
     const exercises = await Exercise.create([
