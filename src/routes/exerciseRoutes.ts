@@ -1,6 +1,5 @@
 import express from "express";
 import { ExerciseController } from "../controllers/exerciseController";
-import { validateFirebaseToken } from "../middleware/firebaseAuth";
 
 const router = express.Router();
 
