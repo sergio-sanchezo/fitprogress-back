@@ -21,9 +21,11 @@
     "express": "^4.21.2",
     "firebase-admin": "^13.1.0",
     "mongoose": "^8.9.5",
+    "morgan": "^1.10.0",
     "typescript": "^5.7.3"
   },
   "devDependencies": {
+    "@types/morgan": "^1.9.9",
     "ts-node-dev": "^2.0.0"
   }
 }

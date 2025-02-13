@@ -1,60 +1,38 @@
 import { Request, Response } from "express";
-import { getStorage } from "firebase-admin/storage";
 import { ProgressImage } from "../models/ProgressImage";
-import { BaseController } from "./baseController";
 import { AppError, handleError } from "../utils/errorHandler";
+import { BaseController } from "./baseController";
+import { getStorage } from "firebase-admin/storage";
 
 export class ProgressImageController extends BaseController {
-  async uploadImage(req: Request, res: Response) {
-    try {
-      const userId = this.getUserId(req);
-      const { type, base64Image } = req.body;
-
-      if (!base64Image || !type) {
-        throw new AppError("Missing required fields", 400);
-      }
-
-      // Convert base64 to buffer
-      const buffer = Buffer.from(base64Image.split(",")[1], "base64");
-
-      // Upload to Firebase Storage
-      const bucket = getStorage().bucket();
-      const fileName = `progress-photos/${userId}/${Date.now()}.jpg`;
-      const file = bucket.file(fileName);
-
-      await file.save(buffer, {
-        metadata: {
-          contentType: "image/jpeg",
-        },
-      });
-
-      // Get public URL
-      const [url] = await file.getSignedUrl({
-        action: "read",
-        expires: "01-01-2100", // Long expiration
-      });
-
-      // Save reference in MongoDB
-      const progressImage = new ProgressImage({
-        userId,
-        imageUrl: url,
-        type,
-        date: new Date(),
-      });
-
-      await progressImage.save();
-
-      res.status(201).json(progressImage);
-    } catch (error) {
-      handleError(error as Error, res);
-    }
-  }
-
   async getAll(req: Request, res: Response) {
     try {
       const userId = this.getUserId(req);
       const images = await ProgressImage.find({ userId }).sort("-date");
       res.json(images);
+    } catch (error) {
+      handleError(error as Error, res);
+    }
+  }
+
+  async create(req: Request, res: Response) {
+    try {
+      const userId = this.getUserId(req);
+      const { imageUrl, type } = req.body;
+
+      if (!imageUrl || !type) {
+        throw new AppError("Missing required fields", 400);
+      }
+
+      const progressImage = new ProgressImage({
+        userId,
+        imageUrl,
+        type,
+        date: new Date(),
+      });
+
+      await progressImage.save();
+      res.status(201).json(progressImage);
     } catch (error) {
       handleError(error as Error, res);
     }
@@ -75,14 +53,20 @@ export class ProgressImageController extends BaseController {
 
       // Delete from Firebase Storage
       const bucket = getStorage().bucket();
-      const fileName = image.imageUrl.split("/").pop()?.split("?")[0];
-      if (fileName) {
-        await bucket.file(`progress-photos/${userId}/${fileName}`).delete();
+      const imageFileName = image.imageUrl.split("/").pop()?.split("?")[0];
+
+      if (imageFileName) {
+        try {
+          await bucket
+            .file(`progress-photos/${userId}/${imageFileName}`)
+            .delete();
+        } catch (storageError) {
+          console.error("Error deleting from storage:", storageError);
+        }
       }
 
-      // Delete from MongoDB
+      // Delete from database
       await image.deleteOne();
-
       res.status(204).send();
     } catch (error) {
       handleError(error as Error, res);

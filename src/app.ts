@@ -7,7 +7,9 @@ import exerciseRoutes from "./routes/exerciseRoutes";
 import workoutRoutes from "./routes/workoutRoutes";
 import measurementRoutes from "./routes/measurementRoutes";
 import weightLogRoutes from "./routes/weightLogRoutes";
+import progressImageRoutes from "./routes/progressImageRoutes";
 import { validateFirebaseToken } from "./middleware/firebaseAuth";
+import morgan from "morgan";
 
 const app = express();
 
@@ -18,6 +20,7 @@ connectDB();
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(morgan("combined"));
 app.use(validateFirebaseToken);
 
 // Routes
@@ -25,6 +28,7 @@ app.use("/api/exercises", exerciseRoutes);
 app.use("/api/workouts", workoutRoutes);
 app.use("/api/measurements", measurementRoutes);
 app.use("/api/weight-logs", weightLogRoutes);
+app.use("/api/progress", progressImageRoutes);
 
 // Error handling middleware
 app.use(
