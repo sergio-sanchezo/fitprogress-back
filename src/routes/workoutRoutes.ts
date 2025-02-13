@@ -5,6 +5,7 @@ const router = express.Router();
 
 const controller = new WorkoutController();
 
+router.get("/suggest", controller.suggestUpcoming.bind(controller));
 router.get("/", controller.getAll.bind(controller));
 router.post("/", controller.create.bind(controller));
 router.get("/:id", controller.getById.bind(controller));
