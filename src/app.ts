@@ -8,6 +8,7 @@ import workoutRoutes from "./routes/workoutRoutes";
 import measurementRoutes from "./routes/measurementRoutes";
 import weightLogRoutes from "./routes/weightLogRoutes";
 import progressImageRoutes from "./routes/progressImageRoutes";
+import statsRoutes from "./routes/statsRoutes";
 import { validateFirebaseToken } from "./middleware/firebaseAuth";
 import morgan from "morgan";
 
@@ -29,6 +30,7 @@ app.use("/api/workouts", workoutRoutes);
 app.use("/api/measurements", measurementRoutes);
 app.use("/api/weight-logs", weightLogRoutes);
 app.use("/api/progress", progressImageRoutes);
+app.use("/api/stats", statsRoutes);
 
 // Error handling middleware
 app.use(

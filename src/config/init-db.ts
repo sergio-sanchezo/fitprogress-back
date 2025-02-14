@@ -1,9 +1,11 @@
-// init-db.ts
+// src/config/init-db.ts
 import mongoose from "mongoose";
 import { Exercise } from "../models/Exercise";
-import { Workout } from "../models/Workout";
+import { WorkoutTemplate } from "../models/WorkoutTemplate";
+import { WorkoutInstance } from "../models/WorkoutInstance";
 import { Measurement } from "../models/Measurement";
 import { WeightLog } from "../models/WeightLog";
+import { ProgressImage } from "../models/ProgressImage";
 import { config } from "./config";
 
 const initializeDatabase = async () => {
@@ -12,12 +14,14 @@ const initializeDatabase = async () => {
     await mongoose.connect(config.mongoUri);
     console.log("Connected to MongoDB");
 
-    // Clear existing data
+    // Clear existing data from all collections
     await Promise.all([
       Exercise.deleteMany({}),
-      Workout.deleteMany({}),
+      WorkoutTemplate.deleteMany({}),
+      WorkoutInstance.deleteMany({}),
       Measurement.deleteMany({}),
       WeightLog.deleteMany({}),
+      ProgressImage.deleteMany({}),
     ]);
     console.log("Cleared existing data");
 
@@ -77,31 +81,80 @@ const initializeDatabase = async () => {
     ]);
     console.log("Created sample exercises");
 
-    // Create sample workouts
-    const workouts = await Workout.create([
+    // Create workout templates
+    const workoutTemplates = await WorkoutTemplate.create([
       {
         name: "Pecho y Tríceps",
-        exercises: [exercises[0]._id, exercises[3]._id], // Press de Banca + Press Militar
-        date: new Date(),
+        exercises: [exercises[0]._id, exercises[3]._id],
         duration: 60,
         userId: sampleUserId,
+        type: "strength",
+        muscleGroups: ["Pecho", "Tríceps", "Hombros"],
+        frequency: "weekly",
+        isActive: true,
       },
       {
         name: "Espalda y Bíceps",
-        exercises: [exercises[2]._id, exercises[4]._id, exercises[5]._id], // Peso Muerto + Dominadas + Curl
-        date: new Date(Date.now() - 24 * 60 * 60 * 1000), // Yesterday
+        exercises: [exercises[2]._id, exercises[4]._id, exercises[5]._id],
         duration: 55,
         userId: sampleUserId,
+        type: "strength",
+        muscleGroups: ["Espalda", "Bíceps"],
+        frequency: "weekly",
+        isActive: true,
       },
       {
         name: "Pierna",
-        exercises: [exercises[1]._id], // Sentadillas
-        date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000), // 2 days ago
+        exercises: [exercises[1]._id],
         duration: 45,
         userId: sampleUserId,
+        type: "strength",
+        muscleGroups: ["Piernas"],
+        frequency: "weekly",
+        isActive: true,
       },
     ]);
-    console.log("Created sample workouts");
+    console.log("Created workout templates");
+
+    // Create workout instances for the current week
+    const now = new Date();
+    const startOfWeek = new Date(now);
+    startOfWeek.setHours(0, 0, 0, 0);
+    startOfWeek.setDate(
+      now.getDate() - now.getDay() + (now.getDay() === 0 ? -6 : 1)
+    );
+
+    // Helper function to get week number
+    const getWeekNumber = (date: Date): number => {
+      const d = new Date(date);
+      d.setHours(0, 0, 0, 0);
+      d.setDate(d.getDate() + 4 - (d.getDay() || 7));
+      const yearStart = new Date(d.getFullYear(), 0, 1);
+      const weekNo = Math.ceil(
+        ((d.getTime() - yearStart.getTime()) / 86400000 + 1) / 7
+      );
+      return weekNo;
+    };
+
+    // Create instances for each template
+    const workoutInstances = await WorkoutInstance.create(
+      workoutTemplates.map((template, index) => ({
+        templateId: template._id,
+        userId: sampleUserId,
+        date: new Date(
+          startOfWeek.getTime() + (index + 1) * 24 * 60 * 60 * 1000
+        ), // Spread across the week
+        weekNumber: getWeekNumber(startOfWeek),
+        year: startOfWeek.getFullYear(),
+        completed: index === 0, // Mark first workout as completed
+        completedAt: index === 0 ? new Date() : undefined,
+        notes:
+          index === 0
+            ? "Great workout! Increased weight on all exercises"
+            : undefined,
+      }))
+    );
+    console.log("Created workout instances for current week");
 
     // Create sample measurements
     const measurements = await Measurement.create([
@@ -158,6 +211,35 @@ const initializeDatabase = async () => {
       },
     ]);
     console.log("Created sample weight logs");
+
+    // Create sample progress images
+    await ProgressImage.create([
+      {
+        userId: sampleUserId,
+        imageUrl:
+          "https://firebasestorage.googleapis.com/v0/b/fitprogress-f06dc.firebasestorage.app/o/test.png?alt=media&token=fe34556e-f40a-4449-bec9-2c659b15c6c3",
+        type: "front",
+        date: new Date(),
+        notes: "Front view progress",
+      },
+      {
+        userId: sampleUserId,
+        imageUrl:
+          "https://firebasestorage.googleapis.com/v0/b/fitprogress-f06dc.firebasestorage.app/o/test.png?alt=media&token=fe34556e-f40a-4449-bec9-2c659b15c6c3",
+        type: "side",
+        date: new Date(),
+        notes: "Side view progress",
+      },
+      {
+        userId: sampleUserId,
+        imageUrl:
+          "https://firebasestorage.googleapis.com/v0/b/fitprogress-f06dc.firebasestorage.app/o/test.png?alt=media&token=fe34556e-f40a-4449-bec9-2c659b15c6c3",
+        type: "back",
+        date: new Date(),
+        notes: "Back view progress",
+      },
+    ]);
+    console.log("Created sample progress images");
 
     console.log("Database initialization completed successfully");
     process.exit(0);

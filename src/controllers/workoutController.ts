@@ -1,62 +1,87 @@
 import { Request, Response } from "express";
-import { Workout } from "../models/Workout";
+import { getWeekNumber, WorkoutInstance } from "../models/WorkoutInstance";
+import { WorkoutTemplate } from "../models/WorkoutTemplate";
 import { AppError, handleError } from "../utils/errorHandler";
 import { BaseController } from "./baseController";
 
 export class WorkoutController extends BaseController {
+  // Get all workout templates
   async getAll(req: Request, res: Response) {
     try {
       const userId = this.getUserId(req);
-      const workouts = await Workout.find({ userId }).populate("exercises");
-      res.json(workouts);
+      const templates = await WorkoutTemplate.find({ userId }).populate(
+        "exercises"
+      );
+      res.json(templates);
     } catch (error) {
       handleError(error as Error, res);
     }
   }
 
+  // Create a new workout template
   async create(req: Request, res: Response) {
     try {
       const userId = this.getUserId(req);
-      const workout = new Workout({ ...req.body, userId });
-      await workout.save();
-      res.status(201).json(workout);
+      const template = new WorkoutTemplate({
+        ...req.body,
+        userId,
+        isActive: true,
+      });
+      await template.save();
+      res.status(201).json(template);
     } catch (error) {
       handleError(error as Error, res);
     }
   }
 
+  // Get a specific workout template
   async getById(req: Request, res: Response) {
     try {
-      const workout = await Workout.findById(req.params.id).populate(
-        "exercises"
-      );
-      if (!workout) {
+      const userId = this.getUserId(req);
+      const template = await WorkoutTemplate.findOne({
+        _id: req.params.id,
+        userId,
+      }).populate("exercises");
+
+      if (!template) {
         throw new AppError("Workout not found", 404);
       }
-      res.json(workout);
+      res.json(template);
     } catch (error) {
       handleError(error as Error, res);
     }
   }
 
+  // Update a workout template
   async update(req: Request, res: Response) {
     try {
-      const workout = await Workout.findByIdAndUpdate(req.params.id, req.body, {
-        new: true,
-      }).populate("exercises");
-      if (!workout) {
+      const userId = this.getUserId(req);
+      const template = await WorkoutTemplate.findOneAndUpdate(
+        { _id: req.params.id, userId },
+        req.body,
+        { new: true }
+      ).populate("exercises");
+
+      if (!template) {
         throw new AppError("Workout not found", 404);
       }
-      res.json(workout);
+      res.json(template);
     } catch (error) {
       handleError(error as Error, res);
     }
   }
 
+  // Delete (deactivate) a workout template
   async delete(req: Request, res: Response) {
     try {
-      const workout = await Workout.findByIdAndDelete(req.params.id);
-      if (!workout) {
+      const userId = this.getUserId(req);
+      const template = await WorkoutTemplate.findOneAndUpdate(
+        { _id: req.params.id, userId },
+        { isActive: false },
+        { new: true }
+      );
+
+      if (!template) {
         throw new AppError("Workout not found", 404);
       }
       res.status(204).send();
@@ -65,65 +90,146 @@ export class WorkoutController extends BaseController {
     }
   }
 
+  // Get workouts for current week
+  async getCurrentWeek(req: Request, res: Response) {
+    try {
+      const userId = this.getUserId(req);
+      const instances = await WorkoutInstance.findCurrentWeek(userId);
+      res.json(instances);
+    } catch (error) {
+      handleError(error as Error, res);
+    }
+  }
+
+  // Mark a workout instance as completed
+  async completeWorkout(req: Request, res: Response) {
+    try {
+      const userId = this.getUserId(req);
+      const instance = await WorkoutInstance.findOne({
+        _id: req.params.id,
+        userId,
+      }).populate({
+        path: "templateId",
+        populate: {
+          path: "exercises",
+        },
+      });
+
+      if (!instance) {
+        throw new AppError("Workout instance not found", 404);
+      }
+
+      if (instance.completed) {
+        throw new AppError("Workout instance already completed", 400);
+      }
+
+      const { exercises, completedAt, notes } = req.body;
+
+      // Validate exercises data
+      if (!Array.isArray(exercises)) {
+        throw new AppError("Invalid exercises data", 400);
+      }
+
+      // Validate completion data
+      if (!completedAt || !Date.parse(completedAt)) {
+        throw new AppError("Invalid completion date", 400);
+      }
+
+      // Mark as completed using the instance method
+      await instance.markAsCompleted({
+        exercises,
+        completedAt,
+        notes: notes || "Workout completed successfully",
+      });
+
+      // Return the updated instance
+      const updatedInstance = await WorkoutInstance.findById(
+        instance._id
+      ).populate({
+        path: "templateId",
+        populate: {
+          path: "exercises",
+        },
+      });
+
+      res.json(updatedInstance);
+    } catch (error) {
+      handleError(error as Error, res);
+    }
+  }
+
+  // Get suggested workouts
   async suggestUpcoming(req: Request, res: Response) {
     try {
       const userId = this.getUserId(req);
-      const now = new Date();
+      const date = new Date();
 
-      // Calculate start of the week (assuming week starts on Monday)
-      const dayOfWeek = now.getDay(); // 0 (Sunday) to 6 (Saturday)
-      // If Sunday (0), treat it as 7 so that Monday is always start
-      const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-      const startOfWeek = new Date(now);
-      startOfWeek.setDate(now.getDate() - daysFromMonday);
-      startOfWeek.setHours(0, 0, 0, 0);
+      // Create instances for the current week if they don't exist
+      const instances = await WorkoutInstance.createWeekInstances(userId, date);
 
-      // Retrieve all workouts for this user
-      const allWorkouts = await Workout.find({ userId });
+      // Filter to show only uncompleted workouts
+      const suggestions = instances
+        .filter((instance) => !instance.completed)
+        .sort((a, b) => a.date.getTime() - b.date.getTime());
 
-      // Group workouts by name
-      const workoutsByName: { [key: string]: any[] } = {};
-      allWorkouts.forEach((workout) => {
-        if (!workoutsByName[workout.name]) {
-          workoutsByName[workout.name] = [];
+      res.json(suggestions);
+    } catch (error) {
+      handleError(error as Error, res);
+    }
+  }
+
+  async getInstancesByTemplate(req: Request, res: Response) {
+    try {
+      const userId = this.getUserId(req);
+
+      // Get all instances for this template
+      const instances = await WorkoutInstance.find({
+        userId,
+        templateId: req.params.id,
+      })
+        .populate({
+          path: "templateId",
+          populate: {
+            path: "exercises",
+          },
+        })
+        .sort("-date"); // Most recent first
+
+      // If no instances exist, create a new one
+      if (instances.length === 0) {
+        const template = await WorkoutTemplate.findOne({
+          _id: req.params.id,
+          userId,
+        }).populate("exercises");
+
+        if (!template) {
+          throw new AppError("Template not found", 404);
         }
-        workoutsByName[workout.name].push(workout);
-      });
 
-      // For each routine type, check if any instance was already done this week
-      const suggestedWorkouts: any[] = [];
-      for (const name in workoutsByName) {
-        const workouts = workoutsByName[name];
-
-        // Check if any instance in this group has a scheduled date in the past
-        // (i.e. between the start of the week and now). We assume that means it was done.
-        const alreadyDoneThisWeek = workouts.some((w) => {
-          const wDate = new Date(w.date);
-          return wDate >= startOfWeek && wDate < now;
+        const newInstance = await WorkoutInstance.create({
+          templateId: template._id,
+          userId,
+          date: new Date(),
+          weekNumber: getWeekNumber(new Date()),
+          year: new Date().getFullYear(),
+          completed: false,
         });
 
-        if (!alreadyDoneThisWeek) {
-          // Among this routine type, choose the upcoming instance (date >= now)
-          const upcomingInstances = workouts.filter(
-            (w) => new Date(w.date) >= now
-          );
-          if (upcomingInstances.length > 0) {
-            // Sort upcoming instances by date ascending
-            upcomingInstances.sort(
-              (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
-            );
-            // Suggest the earliest upcoming instance
-            suggestedWorkouts.push(upcomingInstances[0]);
-          }
-        }
+        // Populate the new instance
+        const populatedInstance = await WorkoutInstance.findById(
+          newInstance._id
+        ).populate({
+          path: "templateId",
+          populate: {
+            path: "exercises",
+          },
+        });
+
+        res.json([populatedInstance]); // Return as array for consistency
+        return;
       }
 
-      // Sort the final suggestions by date ascending
-      suggestedWorkouts.sort(
-        (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
-      );
-
-      res.json(suggestedWorkouts);
+      res.json(instances);
     } catch (error) {
       handleError(error as Error, res);
     }
