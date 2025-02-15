@@ -3,6 +3,7 @@ import { getWeekNumber, WorkoutInstance } from "../models/WorkoutInstance";
 import { WorkoutTemplate } from "../models/WorkoutTemplate";
 import { AppError, handleError } from "../utils/errorHandler";
 import { BaseController } from "./baseController";
+import { Exercise } from "../models/Exercise";
 
 export class WorkoutController extends BaseController {
   // Get all workout templates
@@ -27,8 +28,26 @@ export class WorkoutController extends BaseController {
         userId,
         isActive: true,
       });
+
+      console.log(template);
       await template.save();
       res.status(201).json(template);
+    } catch (error) {
+      console.log(error);
+      handleError(error as Error, res);
+    }
+  }
+
+  // Create exercise
+  async createExercise(req: Request, res: Response) {
+    try {
+      const userId = this.getUserId(req);
+      const exercise = new Exercise({
+        ...req.body,
+        userId,
+      });
+      await exercise.save();
+      res.status(201).json(exercise);
     } catch (error) {
       handleError(error as Error, res);
     }
@@ -71,19 +90,24 @@ export class WorkoutController extends BaseController {
     }
   }
 
-  // Delete (deactivate) a workout template
+  // Delete a workout template and its instances
   async delete(req: Request, res: Response) {
     try {
       const userId = this.getUserId(req);
-      const template = await WorkoutTemplate.findOneAndUpdate(
-        { _id: req.params.id, userId },
-        { isActive: false },
-        { new: true }
-      );
+
+      // Delete template
+      const template = await WorkoutTemplate.findOneAndDelete({
+        _id: req.params.id,
+        userId,
+      });
 
       if (!template) {
         throw new AppError("Workout not found", 404);
       }
+
+      // Delete instances
+      await WorkoutInstance.deleteMany({ templateId: template._id });
+
       res.status(204).send();
     } catch (error) {
       handleError(error as Error, res);
@@ -178,6 +202,26 @@ export class WorkoutController extends BaseController {
     }
   }
 
+  async getInstance(req: Request, res: Response) {
+    try {
+      const userId = this.getUserId(req);
+      const instance = await WorkoutInstance.findById(req.params.id).populate({
+        path: "templateId",
+        populate: {
+          path: "exercises",
+        },
+      });
+
+      if (!instance || instance.userId !== userId) {
+        throw new AppError("Workout instance not found", 404);
+      }
+
+      res.json(instance);
+    } catch (error) {
+      handleError(error as Error, res);
+    }
+  }
+
   async getInstancesByTemplate(req: Request, res: Response) {
     try {
       const userId = this.getUserId(req);
@@ -230,6 +274,86 @@ export class WorkoutController extends BaseController {
       }
 
       res.json(instances);
+    } catch (error) {
+      handleError(error as Error, res);
+    }
+  }
+
+  async getWorkoutDetail(req: Request, res: Response) {
+    try {
+      const userId = this.getUserId(req);
+      const id = req.params.id;
+
+      let instance = await WorkoutInstance.findOne({
+        _id: id,
+        userId,
+      }).populate({
+        path: "templateId",
+        populate: { path: "exercises" },
+      });
+
+      if (instance) {
+        res.json(instance);
+        return;
+      }
+
+      const template = await WorkoutTemplate.findOne({
+        _id: id,
+        userId,
+      }).populate("exercises");
+      if (template) {
+        // Create a pseudo–instance object from the template.
+        const pseudoInstance = {
+          _id: template._id,
+          templateId: template,
+          userId,
+          date: null, // Not scheduled yet
+          completed: false,
+          progress: [],
+          // You can add any extra fields needed for display
+        };
+        res.json(pseudoInstance);
+        return;
+      }
+
+      throw new AppError("Workout not found", 404);
+    } catch (error) {
+      handleError(error as Error, res);
+    }
+  }
+
+  async createInstance(req: Request, res: Response) {
+    try {
+      const userId = this.getUserId(req);
+      const { templateId } = req.body;
+      if (!templateId) {
+        throw new AppError("templateId is required", 400);
+      }
+      const template = await WorkoutTemplate.findOne({
+        _id: templateId,
+        userId,
+      }).populate("exercises");
+      if (!template) {
+        throw new AppError("Workout template not found", 404);
+      }
+      const now = new Date();
+      const weekNumber = getWeekNumber(now);
+      const newInstance = await WorkoutInstance.create({
+        templateId: template._id,
+        userId,
+        date: now,
+        weekNumber,
+        year: now.getFullYear(),
+        completed: false,
+        progress: [],
+      });
+      const populatedInstance = await WorkoutInstance.findById(
+        newInstance._id
+      ).populate({
+        path: "templateId",
+        populate: { path: "exercises" },
+      });
+      res.status(201).json(populatedInstance);
     } catch (error) {
       handleError(error as Error, res);
     }

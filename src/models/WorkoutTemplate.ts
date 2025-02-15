@@ -55,10 +55,6 @@ const workoutTemplateSchema = new Schema<IWorkoutTemplate>(
       required: true,
       default: "weekly",
     },
-    isActive: {
-      type: Boolean,
-      default: true,
-    },
   },
   {
     timestamps: true,

@@ -20,5 +20,9 @@ router.get(
   "/instances/:id",
   controller.getInstancesByTemplate.bind(controller)
 );
+router.get("/get-instance/:id", controller.getInstance.bind(controller));
+router.get("/detail/:id", controller.getWorkoutDetail.bind(controller));
+router.post("/instance", controller.createInstance.bind(controller));
+router.post("/custom-exercise", controller.createExercise.bind(controller));
 
 export default router;

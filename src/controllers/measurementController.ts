@@ -21,6 +21,7 @@ export class MeasurementController extends BaseController {
       await measurement.save();
       res.status(201).json(measurement);
     } catch (error) {
+      console.log(error);
       handleError(error as Error, res);
     }
   }

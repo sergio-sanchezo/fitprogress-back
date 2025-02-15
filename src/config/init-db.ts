@@ -14,7 +14,11 @@ const initializeDatabase = async () => {
     await mongoose.connect(config.mongoUri);
     console.log("Connected to MongoDB");
 
-    // Clear existing data from all collections
+    // Drop the existing database for a clean slate
+    await mongoose.connection.dropDatabase();
+    console.log("Dropped existing database");
+
+    // (Optional) Clear any existing data from all collections
     await Promise.all([
       Exercise.deleteMany({}),
       WorkoutTemplate.deleteMany({}),
@@ -91,7 +95,6 @@ const initializeDatabase = async () => {
         type: "strength",
         muscleGroups: ["Pecho", "Tríceps", "Hombros"],
         frequency: "weekly",
-        isActive: true,
       },
       {
         name: "Espalda y Bíceps",
@@ -101,7 +104,6 @@ const initializeDatabase = async () => {
         type: "strength",
         muscleGroups: ["Espalda", "Bíceps"],
         frequency: "weekly",
-        isActive: true,
       },
       {
         name: "Pierna",
@@ -111,20 +113,11 @@ const initializeDatabase = async () => {
         type: "strength",
         muscleGroups: ["Piernas"],
         frequency: "weekly",
-        isActive: true,
       },
     ]);
     console.log("Created workout templates");
 
-    // Create workout instances for the current week
-    const now = new Date();
-    const startOfWeek = new Date(now);
-    startOfWeek.setHours(0, 0, 0, 0);
-    startOfWeek.setDate(
-      now.getDate() - now.getDay() + (now.getDay() === 0 ? -6 : 1)
-    );
-
-    // Helper function to get week number
+    // Helper function to get week number from a date
     const getWeekNumber = (date: Date): number => {
       const d = new Date(date);
       d.setHours(0, 0, 0, 0);
@@ -136,28 +129,61 @@ const initializeDatabase = async () => {
       return weekNo;
     };
 
-    // Create instances for each template
-    const workoutInstances = await WorkoutInstance.create(
-      workoutTemplates.map((template, index) => ({
-        templateId: template._id,
-        userId: sampleUserId,
-        date: new Date(
-          startOfWeek.getTime() + (index + 1) * 24 * 60 * 60 * 1000
-        ), // Spread across the week
-        weekNumber: getWeekNumber(startOfWeek),
-        year: startOfWeek.getFullYear(),
-        completed: index === 0, // Mark first workout as completed
-        completedAt: index === 0 ? new Date() : undefined,
-        notes:
-          index === 0
-            ? "Great workout! Increased weight on all exercises"
-            : undefined,
-      }))
+    // Set a fixed current date: February 15, 2025
+    const now = new Date("2025-02-15T12:00:00Z");
+
+    // --- Create workout instances for monthly comparison ---
+
+    // Current month: From Feb 1, 2025 until Feb 15, 2025
+    // We want 11 completed instances in the current month.
+    const startOfCurrentMonth = new Date("2025-02-01T00:00:00Z");
+    const numCurrent = 11;
+    const currentMonthInstances = await WorkoutInstance.create(
+      Array.from({ length: numCurrent }).map((_, index) => {
+        const date = new Date(
+          startOfCurrentMonth.getTime() + index * 24 * 60 * 60 * 1000
+        );
+        return {
+          templateId: workoutTemplates[index % workoutTemplates.length]._id,
+          userId: sampleUserId,
+          date,
+          weekNumber: getWeekNumber(date),
+          year: date.getFullYear(),
+          completed: true,
+          completedAt: date,
+          notes: "Current month workout",
+        };
+      })
     );
-    console.log("Created workout instances for current week");
+    console.log("Created current month workout instances");
+
+    // Last month: From Jan 1, 2025 until Feb 1, 2025
+    // We want 10 completed instances in the last month.
+    const startOfLastMonth = new Date("2025-01-01T00:00:00Z");
+    const numLast = 10;
+    const lastMonthInstances = await WorkoutInstance.create(
+      Array.from({ length: numLast }).map((_, index) => {
+        const date = new Date(
+          startOfLastMonth.getTime() + index * 24 * 60 * 60 * 1000
+        );
+        return {
+          templateId: workoutTemplates[index % workoutTemplates.length]._id,
+          userId: sampleUserId,
+          date,
+          weekNumber: getWeekNumber(date),
+          year: date.getFullYear(),
+          completed: true,
+          completedAt: date,
+          notes: "Last month workout",
+        };
+      })
+    );
+    console.log("Created last month workout instances");
+
+    // --- End Monthly Comparison Data ---
 
     // Create sample measurements
-    const measurements = await Measurement.create([
+    await Measurement.create([
       {
         date: new Date(),
         chest: 95,
@@ -188,7 +214,7 @@ const initializeDatabase = async () => {
     console.log("Created sample measurements");
 
     // Create sample weight logs
-    const weightLogs = await WeightLog.create([
+    await WeightLog.create([
       {
         date: new Date("2024-01-01"),
         weight: 75,
@@ -217,7 +243,7 @@ const initializeDatabase = async () => {
       {
         userId: sampleUserId,
         imageUrl:
-          "https://firebasestorage.googleapis.com/v0/b/fitprogress-f06dc.firebasestorage.app/o/test.png?alt=media&token=fe34556e-f40a-4449-bec9-2c659b15c6c3",
+          "https://firebasestorage.googleapis.com/v0/b/fitprogress-f06dc.firebasestorage.app/o/front.jpeg?alt=media&token=be1f18a6-61cc-465c-bcbe-4947baecabd1",
         type: "front",
         date: new Date(),
         notes: "Front view progress",
@@ -225,7 +251,7 @@ const initializeDatabase = async () => {
       {
         userId: sampleUserId,
         imageUrl:
-          "https://firebasestorage.googleapis.com/v0/b/fitprogress-f06dc.firebasestorage.app/o/test.png?alt=media&token=fe34556e-f40a-4449-bec9-2c659b15c6c3",
+          "https://firebasestorage.googleapis.com/v0/b/fitprogress-f06dc.firebasestorage.app/o/side.png?alt=media&token=ac8ff857-ac4a-4b30-9204-f76c2de931a1",
         type: "side",
         date: new Date(),
         notes: "Side view progress",
@@ -233,7 +259,7 @@ const initializeDatabase = async () => {
       {
         userId: sampleUserId,
         imageUrl:
-          "https://firebasestorage.googleapis.com/v0/b/fitprogress-f06dc.firebasestorage.app/o/test.png?alt=media&token=fe34556e-f40a-4449-bec9-2c659b15c6c3",
+          "https://firebasestorage.googleapis.com/v0/b/fitprogress-f06dc.firebasestorage.app/o/back.png?alt=media&token=c5d88330-7d24-4002-b744-8f8ec0e4e71d",
         type: "back",
         date: new Date(),
         notes: "Back view progress",
