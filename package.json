@@ -6,8 +6,7 @@
     "build": "tsc",
     "start": "node dist/app.js",
     "dev": "ts-node-dev src/app.ts",
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "init-db": "ts-node-dev src/config/init-db.ts"
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",
   "license": "ISC",
