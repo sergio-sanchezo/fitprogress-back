@@ -8,7 +8,7 @@ import { WeightLog } from "../models/WeightLog";
 import { ProgressImage } from "../models/ProgressImage";
 import { config } from "./config";
 
-const initializeDatabase = async () => {
+export const initializeDatabase = async () => {
   try {
     // Connect to MongoDB
     await mongoose.connect(config.mongoUri);

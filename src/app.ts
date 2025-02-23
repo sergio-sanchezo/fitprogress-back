@@ -12,6 +12,7 @@ import statsRoutes from "./routes/statsRoutes";
 import chatRoutes from "./routes/chatRoutes";
 import { validateFirebaseToken } from "./middleware/firebaseAuth";
 import morgan from "morgan";
+import { initializeDatabase } from "./config/init-db";
 
 const app = express();
 
@@ -23,6 +24,11 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan("combined"));
+
+app.get("/init", (req, res) => {
+  initializeDatabase();
+});
+
 app.use(validateFirebaseToken);
 
 // Routes
