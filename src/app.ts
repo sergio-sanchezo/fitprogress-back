@@ -27,6 +27,7 @@ app.use(morgan("combined"));
 
 app.get("/init", (req, res) => {
   initializeDatabase();
+  res.send("Database initialized");
 });
 
 app.use(validateFirebaseToken);
